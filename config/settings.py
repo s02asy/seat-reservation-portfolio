@@ -25,9 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-^h^uvlp65!j_#&w1vve=c*6g#kpos^8glq6iea8k3^*r+ops_3'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
 
-ALLOWED_HOSTS = []
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
+else:
+    ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
 
 
 # Application definition
@@ -145,9 +148,9 @@ else:
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ko-kr'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
@@ -164,16 +167,9 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.User'
-LOGIN_REDIRECT_URL = '/reservations/'      # ✅ 공연 목록
+LOGIN_REDIRECT_URL = '/reservations/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 AUTHENTICATION_BACKENDS = [
     'accounts.backends.CaseInsensitiveModelBackend',  # 우리가 만든 백엔드
 ]
 ASGI_APPLICATION = "config.asgi.application"
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-로컬용")
-DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
-
-if DEBUG:
-    ALLOWED_HOSTS = ["*"]
-else:
-    ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
