@@ -1,0 +1,384 @@
+{% extends "base_auth.html" %}
+
+{% block title %}회원가입 | 좌석 예약 서비스{% endblock %}
+
+{% block extra_head %}
+    <!-- React 18 + Babel CDN (로컬 개발용) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+{# Django 서버에서 온 폼 에러를 React로 넘기기 위한 숨김 div #}
+{% if form.errors %}
+    <div id="signup-errors" data-message="{{ form.errors.as_text|escape }}"></div>
+{% endif %}
+
+<div id="signup-root"></div>
+
+{# 실제 Django SignupForm 을 제출할 숨겨진 폼 #}
+<form id="django-signup-form"
+      method="post"
+      action="{% url 'accounts:signup' %}"
+      style="display:none;">
+    {% csrf_token %}
+    <input type="text" name="username" id="signup-username-input">
+    <input type="text" name="real_name" id="signup-realname-input">
+    <input type="text" name="phone_number" id="signup-phone-input">
+    <input type="password" name="password1" id="signup-password1-input">
+    <input type="password" name="password2" id="signup-password2-input">
+</form>
+
+<script type="text/babel">
+
+    const { useState, useEffect } = React;
+
+    function SignupCard() {
+        const [username, setUsername] = useState('');
+        const [realName, setRealName] = useState('');
+        const [phone, setPhone] = useState('');
+        const [password1, setPassword1] = useState('');
+        const [password2, setPassword2] = useState('');
+        const [error, setError] = useState(null);
+        const [loading, setLoading] = useState(false);
+
+        // 아이디 중복 상태: idle / blank / checking / available / taken / error
+        const [usernameStatus, setUsernameStatus] = useState('idle');
+
+        // 각 필드별 에러 플래그
+        const [usernameError, setUsernameError] = useState(false);
+        const [realNameError, setRealNameError] = useState(false);
+        const [phoneError, setPhoneError] = useState(false);
+        const [password1Error, setPassword1Error] = useState(false);
+        const [password2Error, setPassword2Error] = useState(false);
+
+        const [password1Hint, setPassword1Hint] = useState('');   // 비밀번호 길이 에러 문구
+        const [password2Hint, setPassword2Hint] = useState('');   // 비밀번호 확인 에러 문구
+        const [usernameHint, setUsernameHint] = useState('');     // 아이디 규칙 에러 문구
+
+        // Django가 준 서버 측 에러를 초기값으로 세팅
+        useEffect(() => {
+            const div = document.getElementById('signup-errors');
+            if (div && div.dataset.message) {
+                setError(div.dataset.message.replace(/\*/g, '').trim());
+            }
+        }, []);
+
+        // ✅ 아이디 중복 확인
+        const handleCheckUsername = () => {
+            const raw = username.trim();          // 사용자가 친 그대로
+            const lowered = raw.toLowerCase();    // 내부 처리용 (DB는 소문자로만)
+
+            if (!raw) {
+                setUsernameError(true);
+                setUsernameStatus('blank');
+                setUsernameHint('');
+                return;
+            }
+
+            const usernamePattern = /^[a-z0-9]+$/;
+            if (!usernamePattern.test(lowered)) {
+                setUsernameError(true);
+                setUsernameStatus('idle');
+                setUsernameHint('아이디는 영문과 숫자만 사용할 수 있습니다.');
+                return;
+            }
+
+            setError(null);
+            setUsernameHint('');
+            setUsernameStatus('checking');
+
+            fetch("{% url 'accounts:check_username' %}?username=" + encodeURIComponent(lowered), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.ok) {
+                    setUsernameStatus('error');
+                    return;
+                }
+                if (data.exists) {
+                    setUsernameStatus('taken');
+                } else {
+                    setUsernameStatus('available');
+                }
+            })
+            .catch(() => {
+                setUsernameStatus('error');
+            });
+        };
+
+        // ✅ 회원가입 버튼 눌렀을 때
+        const handleSubmit = (e) => {
+            e.preventDefault();
+
+            const rawUsername = username.trim();          // 입력 그대로
+            const u = rawUsername.toLowerCase();          // 저장/검증용 (DB는 소문자)
+
+            const r = realName.trim();
+            const p = phone.trim();
+            const pw1 = password1;
+            const pw2 = password2;
+
+            // 에러 초기화
+            setUsernameError(false);
+            setRealNameError(false);
+            setPhoneError(false);
+            setPassword1Error(false);
+            setPassword2Error(false);
+            setPassword1Hint('');
+            setPassword2Hint('');
+            setUsernameHint('');
+
+            let hasBlank = false;
+
+            if (!rawUsername) {
+                setUsernameError(true);
+                setUsernameStatus('blank');
+                hasBlank = true;
+            }
+            if (!r) {
+                setRealNameError(true);
+                hasBlank = true;
+            }
+            if (!p) {
+                setPhoneError(true);
+                hasBlank = true;
+            }
+            if (!pw1) {
+                setPassword1Error(true);
+                hasBlank = true;
+            }
+            if (!pw2) {
+                setPassword2Error(true);
+                hasBlank = true;
+            }
+
+            if (hasBlank) {
+                setError(null);
+                return;
+            }
+
+            // 아이디 규칙 체크 (영문 소문자 + 숫자)
+            const usernamePattern = /^[a-z0-9]+$/;
+            if (!usernamePattern.test(u)) {
+                setUsernameError(true);
+                setUsernameStatus('idle');
+                setUsernameHint('아이디는 영문과 숫자만 사용할 수 있습니다.');
+                setError(null);
+                return;
+            }
+
+            // 비밀번호 길이 체크
+            if (pw1.length < 8) {
+                setPassword1Error(true);
+                setPassword1Hint('비밀번호는 최소 8자 이상으로 입력해 주세요.');
+                setError(null);
+                return;
+            }
+
+            // 비밀번호 일치 체크
+            if (pw1 !== pw2) {
+                setPassword2Error(true);
+                setPassword2Hint('비밀번호와 비밀번호 확인이 서로 다릅니다.');
+                setError(null);
+                return;
+            }
+
+            setError(null);
+            setLoading(true);
+
+            // 숨겨진 Django 폼에 값 채워 넣고 제출
+            const form = document.getElementById('django-signup-form');
+            document.getElementById('signup-username-input').value = u;   // DB 에는 소문자로 저장
+            document.getElementById('signup-realname-input').value = r;
+            document.getElementById('signup-phone-input').value = p;
+            document.getElementById('signup-password1-input').value = pw1;
+            document.getElementById('signup-password2-input').value = pw2;
+
+            form.submit();
+        };
+
+        return (
+            <div className="login-card">
+                <div className="badge">
+                    <span className="badge-dot"></span>
+                    <span>New Account · SeatFlow</span>
+                </div>
+
+                <div className="login-logo">
+                    Create<span>Account</span>
+                </div>
+                <div className="login-sub">
+                    좌석 예약 서비스를 사용하기 위한 계정을 생성합니다.
+                </div>
+
+                {error && <div className="login-error">{error}</div>}
+
+                <form className="login-form" onSubmit={handleSubmit}>
+                    {/* 아이디 */}
+                    <label className="field">
+                        <span>아이디</span>
+
+                        <div className="input-with-button">
+                            <input
+                                type="text"
+                                value={username}
+                                onChange={e => {
+                                    const value = e.target.value; // 화면에는 입력 그대로 (대/소문자 유지)
+                                    setUsername(value);
+                                    setUsernameStatus('idle');
+                                    setUsernameError(false);
+                                    setUsernameHint('');
+                                }}
+                                placeholder={
+                                    (usernameStatus === 'blank' || usernameError) && !usernameHint
+                                        ? '아이디를 입력해 주세요.'
+                                        : '로그인에 사용할 아이디 (영문/숫자)'
+                                }
+                                autoComplete="username"
+                                className={
+                                    (usernameError ||
+                                     usernameStatus === 'blank' ||
+                                     usernameStatus === 'taken' ||
+                                     !!usernameHint)
+                                        ? 'input-error'
+                                        : ''
+                                }
+                            />
+
+                            <button
+                                type="button"
+                                onClick={handleCheckUsername}
+                                className="input-inline-btn"
+                            >
+                                {usernameStatus === 'checking' ? '확인 중…' : '중복확인'}
+                            </button>
+                        </div>
+
+                        <div className="username-check-row">
+                            {usernameHint && (
+                                <span className="username-msg-bad">{usernameHint}</span>
+                            )}
+
+                            {!usernameHint && usernameStatus === 'available' && (
+                                <span className="username-msg-ok">사용 가능한 아이디입니다.</span>
+                            )}
+                            {!usernameHint && usernameStatus === 'taken' && (
+                                <span className="username-msg-bad">이미 사용 중인 아이디입니다.</span>
+                            )}
+                            {!usernameHint && usernameStatus === 'error' && (
+                                <span className="username-msg-bad">중복 확인 중 오류가 발생했습니다.</span>
+                            )}
+                        </div>
+                    </label>
+
+                    {/* 이름 */}
+                    <label className="field">
+                        <span>이름</span>
+                        <input
+                            type="text"
+                            value={realName}
+                            onChange={e => {
+                                setRealName(e.target.value);
+                                setRealNameError(false);
+                            }}
+                            placeholder={
+                                realNameError
+                                    ? '이름을 입력해 주세요.'
+                                    : '실명 또는 닉네임'
+                            }
+                            autoComplete="name"
+                            className={realNameError ? 'input-error' : ''}
+                        />
+                    </label>
+
+                    {/* 휴대폰 번호 */}
+                    <label className="field">
+                        <span>휴대폰 번호</span>
+                        <input
+                            type="tel"
+                            value={phone}
+                            onChange={e => {
+                                setPhone(e.target.value);
+                                setPhoneError(false);
+                            }}
+                            placeholder={phoneError ? '휴대폰 번호를 입력해 주세요.' : '010-1234-5678'}
+                            autoComplete="tel"
+                            className={phoneError ? 'input-error' : ''}
+                        />
+                    </label>
+
+                    {/* 비밀번호 */}
+                    <label className="field">
+                        <span>비밀번호</span>
+                        <input
+                            type="password"
+                            value={password1}
+                            onChange={e => {
+                                setPassword1(e.target.value);
+                                setPassword1Error(false);
+                                setPassword1Hint('');
+                            }}
+                            placeholder={
+                                password1Error && !password1Hint
+                                    ? '비밀번호를 입력해 주세요.'
+                                    : '영문/숫자 포함 8자 이상'
+                            }
+                            autoComplete="new-password"
+                            className={password1Error ? 'input-error' : ''}
+                        />
+                        {password1Hint && (
+                            <div className="field-msg-bad">{password1Hint}</div>
+                        )}
+                    </label>
+
+                    {/* 비밀번호 확인 */}
+                    <label className="field">
+                        <span>비밀번호 확인</span>
+                        <input
+                            type="password"
+                            value={password2}
+                            onChange={e => {
+                                setPassword2(e.target.value);
+                                setPassword2Error(false);
+                                setPassword2Hint('');
+                            }}
+                            placeholder={
+                                password2Error && !password2Hint
+                                    ? '비밀번호를 한 번 더 입력해 주세요.'
+                                    : '비밀번호 한 번 더 입력'
+                            }
+                            autoComplete="new-password"
+                            className={password2Error ? 'input-error' : ''}
+                        />
+                        {password2Hint && (
+                            <div className="field-msg-bad">{password2Hint}</div>
+                        )}
+                    </label>
+
+                    <button type="submit" className="login-button" disabled={loading}>
+                        {loading ? '계정 생성 중...' : '계정 만들기'}
+                    </button>
+
+                    <div className="login-footer">
+                        <span>이미 계정이 있으신가요?</span>
+                        <a href="{% url 'login' %}">로그인</a>
+                    </div>
+
+                    <div className="small-muted">
+                        가입 완료 후 로그인 화면으로 이동합니다. 실제 계정 생성/검증은 Django에서 수행됩니다.
+                    </div>
+                </form>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('signup-root')).render(<SignupCard />);
+</script>
+
+{% endblock %}

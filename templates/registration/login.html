@@ -1,0 +1,122 @@
+{% extends "base_auth.html" %}
+
+{% block title %}로그인 | 좌석 예약 서비스{% endblock %}
+
+{% block extra_head %}
+    <!-- React 18 + Babel CDN (로컬 개발용) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+{# 서버측 로그인 실패 메시지를 React로 넘기기 위한 숨김 div #}
+{% if form.non_field_errors %}
+    <div id="server-errors" data-message="{{ form.non_field_errors|join:' ' }}"></div>
+{% endif %}
+
+<div id="login-root"></div>
+
+{# 실제 장고 LoginView가 처리할 폼 (React가 값 채워넣고 submit함) #}
+<form id="django-login-form" method="post" action="{% url 'login' %}" style="display:none;">
+    {% csrf_token %}
+    <input type="text" name="username" id="django-username-input">
+    <input type="password" name="password" id="django-password-input">
+</form>
+
+<script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function LoginCard() {
+        const [username, setUsername] = useState('');
+        const [password, setPassword] = useState('');
+        const [error, setError] = useState(null);
+        const [loading, setLoading] = useState(false);
+
+        // 장고에서 온 에러 메시지 있으면 초기값으로 반영
+        useEffect(() => {
+            const serverDiv = document.getElementById('server-errors');
+            if (serverDiv && serverDiv.dataset.message) {
+                setError(serverDiv.dataset.message);
+            }
+        }, []);
+
+        const handleSubmit = (e) => {
+            e.preventDefault();
+
+            if (!username || !password) {
+                setError('아이디와 비밀번호를 모두 입력해 주세요.');
+                return;
+            }
+
+            setError(null);
+            setLoading(true);
+
+            // 숨겨둔 실제 Django 폼에 값 채워넣고 submit
+            const form = document.getElementById('django-login-form');
+            document.getElementById('django-username-input').value = username;
+            document.getElementById('django-password-input').value = password;
+            form.submit();
+        };
+
+        return (
+            <div className="login-card">
+                <div className="badge">
+                    <span className="badge-dot"></span>
+                    <span>Demo · Django + React</span>
+                </div>
+
+                <div className="login-logo">
+                    Seat<span>Flow</span>
+                </div>
+                <div className="login-sub">
+                    실시간 좌석 예약 서비스 데모 · 보안 로그인
+                </div>
+
+                {error && <div className="login-error">{error}</div>}
+
+                <form className="login-form" onSubmit={handleSubmit}>
+                    <label className="field">
+                        <span>아이디</span>
+                        <input
+                            type="text"
+                            value={username}
+                            onChange={e => setUsername(e.target.value)}
+                            placeholder="아이디를 입력하세요"
+                            autoComplete="username"
+                        />
+                    </label>
+
+                    <label className="field">
+                        <span>비밀번호</span>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="비밀번호를 입력하세요"
+                            autoComplete="current-password"
+                        />
+                    </label>
+
+                    <button type="submit" className="login-button" disabled={loading}>
+                        {loading ? '로그인 중...' : '로그인'}
+                    </button>
+
+                    <div className="login-footer">
+                        <span>처음이세요?</span>
+                        <a href="{% url 'accounts:signup' %}">회원가입</a>
+                    </div>
+
+                    <div className="small-muted">
+                        실제 인증/세션 처리는 Django LoginView에서 수행합니다.
+                    </div>
+                </form>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('login-root')).render(<LoginCard />);
+</script>
+
+{% endblock %}

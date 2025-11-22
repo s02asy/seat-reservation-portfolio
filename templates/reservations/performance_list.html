@@ -1,0 +1,231 @@
+{% extends "base_auth.html" %}
+
+{% block title %}공연 목록 | 좌석 예약 서비스{% endblock %}
+
+{% block extra_head %}
+<style>
+    .auth-wrapper {
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 32px 16px;
+    }
+
+    .perf-page {
+        width: 100%;
+        max-width: 1080px;
+        color: #e5e7eb;
+    }
+
+    .perf-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .perf-title-main {
+        font-size: 22px;
+        font-weight: 700;
+    }
+    .perf-title-main span {
+        color: #38bdf8;
+    }
+
+    .perf-sub {
+        font-size: 13px;
+        color: #9ca3af;
+        margin-top: 4px;
+    }
+
+    .perf-user {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: #9ca3af;
+    }
+
+    .btn-ghost {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(148,163,184,0.8);
+        background: rgba(15,23,42,0.9);
+        color: #e5e7eb;
+        font-size: 12px;
+        text-decoration: none;
+    }
+    .btn-ghost:hover {
+        background: rgba(30,64,175,0.9);
+    }
+
+    .perf-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+    }
+
+    .perf-card {
+        position: relative;
+        background: rgba(15,23,42,0.9);
+        border-radius: 20px;
+        padding: 18px 18px 16px;
+        border: 1px solid rgba(148,163,184,0.45);
+        box-shadow:
+            0 18px 40px rgba(15,23,42,0.9),
+            0 0 0 1px rgba(15,23,42,0.9);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .perf-card-title {
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .perf-card-datetime {
+        font-size: 12px;
+        color: #9ca3af;
+    }
+
+    .perf-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 11px;
+    }
+
+    .perf-badge {
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148,163,184,0.65);
+        background: rgba(15,23,42,0.95);
+    }
+
+    .perf-badge-available {
+        border-color: rgba(74,222,128,0.8);
+        color: #bbf7d0;
+    }
+
+    .perf-badge-warning {
+        border-color: rgba(251,191,36,0.85);
+        color: #facc15;
+    }
+
+    .perf-badge-danger {
+        border-color: rgba(248,113,113,0.9);
+        color: #fecaca;
+    }
+
+    .perf-actions {
+        margin-top: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .perf-button {
+        flex: 1;
+        text-align: center;
+        padding: 9px 0;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: #0b1220;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 12px 24px rgba(37,99,235,0.6);
+    }
+    .perf-button:hover {
+        filter: brightness(1.05);
+    }
+
+    .perf-empty {
+        margin-top: 40px;
+        font-size: 13px;
+        color: #9ca3af;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="perf-page">
+    <header class="perf-header">
+        <div>
+            <div class="perf-title-main">
+                좌석 예약 <span>서비스</span>
+            </div>
+            <div class="perf-sub">
+                공연을 선택한 뒤 좌석을 직접 골라 예매할 수 있습니다.
+            </div>
+        </div>
+
+        <div class="perf-user">
+            <span>{{ request.user.real_name }} 님</span>
+
+            <form method="post"
+                action="{% url 'logout' %}"
+                style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-ghost logout-btn">
+                    로그아웃
+                </button>
+            </form>
+        </div>
+    </header>
+
+    {% if performances %}
+        <div class="perf-grid">
+            {% for p in performances %}
+                <article class="perf-card">
+                    <div class="perf-card-title">{{ p.title }}</div>
+                    <div class="perf-card-datetime">
+                        {{ p.start_at|date:"Y.m.d (D)" }}
+                        · {{ p.start_at|time:"H:i" }} ~ {{ p.end_at|time:"H:i" }}
+                    </div>
+
+                    <div class="perf-badges">
+                        <span class="perf-badge">총 {{ p.total_seats }}석</span>
+                        <span class="perf-badge">예약 확정 {{ p.confirmed_seats }}석</span>
+                        <span class="perf-badge">임시 홀드 {{ p.hold_seats }}석</span>
+
+                        {% if p.available_seats > 10 %}
+                            <span class="perf-badge perf-badge-available">
+                                잔여 {{ p.available_seats }}석
+                            </span>
+                        {% elif p.available_seats > 0 %}
+                            <span class="perf-badge perf-badge-warning">
+                                잔여 {{ p.available_seats }}석 (마감 임박)
+                            </span>
+                        {% else %}
+                            <span class="perf-badge perf-badge-danger">
+                                매진
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="perf-actions">
+                        {% if p.available_seats > 0 %}
+                            <a href="{% url 'reservations:seat_map' p.id %}" class="perf-button">
+                                좌석 선택
+                            </a>
+                        {% else %}
+                            <div style="font-size: 12px; color: #9ca3af;">
+                                현재 예약 가능한 좌석이 없습니다.
+                            </div>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="perf-empty">
+            등록된 공연이 없습니다. 관리자에서 Performance를 먼저 생성해 주세요.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
