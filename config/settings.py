@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -75,17 +77,29 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# ----------------- Database 설정 -----------------
+# Render 같은 서버 환경에서 DATABASE_URL 있으면 그걸 사용
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'seat_reservation',
-        'USER': 'seatuser',
-        'PASSWORD': 'seatuser',
-        'HOST': 'localhost',
-        'PORT': '5432',
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+        )
     }
-}
+else:
+    # 로컬 개발용 (지금 Windows에서 사용하던 Postgres 설정)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'seat_reservation',
+            'USER': 'seatuser',
+            'PASSWORD': 'seatuser',
+            'HOST': 'localhost',
+            'PORT': '5432',
+        }
+    }
 
 
 # Password validation
@@ -108,11 +122,24 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # channels용 채널 레이어 설정 (개발용 인메모리)
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
-    },
-}
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+if os.environ.get("USE_REDIS", "").lower() == "true":
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+            },
+        },
+    }
+else:
+    from channels.layers import InMemoryChannelLayer
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
 
 
 # Internationalization
@@ -143,3 +170,10 @@ AUTHENTICATION_BACKENDS = [
     'accounts.backends.CaseInsensitiveModelBackend',  # 우리가 만든 백엔드
 ]
 ASGI_APPLICATION = "config.asgi.application"
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-로컬용")
+DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
+
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
+else:
+    ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
