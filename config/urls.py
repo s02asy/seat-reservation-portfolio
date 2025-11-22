@@ -17,10 +17,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import redirect
+from django.views.generic import RedirectView
 
 urlpatterns = [
     # 루트 접속시 로그인 페이지로 리다이렉트
-    path('', lambda request: redirect('accounts:login'), name='root'),
+    path('', RedirectView.as_view(url='/accounts/login/', permanent=False), name='root'),
     path('admin/', admin.site.urls),
     # 우리 회원가입/기타 계정용 URL
     path('accounts/', include('accounts.urls')),
