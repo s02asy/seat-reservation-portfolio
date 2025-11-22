@@ -33,6 +33,11 @@ else:
     ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
 
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://seat-reservation-7gae.onrender.com",
+]
+
+
 # Application definition
 
 INSTALLED_APPS = [
